@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "โหลดวิดีโอ — Video Downloader",
+  "short_name": "โหลดวิดีโอ",
+  "version": "1.0.0",
+  "description": "ดาวน์โหลดวิดีโอจาก YouTube, Facebook และ Zoom ในคลิกเดียว ผ่านแอป โหลดวิดีโอ บนเครื่องของคุณ",
+  "minimum_chrome_version": "116",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "โหลดวิดีโอ",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["activeTab", "alarms", "contextMenus", "cookies", "notifications", "storage"],
+  "host_permissions": [
+    "http://127.0.0.1:8765/*",
+    "*://*.youtube.com/*",
+    "*://youtu.be/*",
+    "*://*.facebook.com/*",
+    "*://fb.watch/*",
+    "*://*.zoom.us/*"
+  ]
+}

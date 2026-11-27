@@ -14,33 +14,14 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "packaging"))
+
+from icons import make_ico  # noqa: E402
+
 BUILD = ROOT / "build"
 DIST = ROOT / "dist"
 NAME = "VideoDownloader"
 EXE = ".exe" if sys.platform.startswith("win") else ""
-
-
-def make_icon(path: Path) -> None:
-    """วาดไอคอน (สี่เหลี่ยมสีน้ำเงิน + ลูกศรดาวน์โหลด) เป็นไฟล์ .ico"""
-    from PIL import Image, ImageDraw
-
-    size = 256
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    draw.rounded_rectangle([8, 8, 248, 248], radius=56, fill=(37, 99, 235, 255))
-    white = (255, 255, 255, 255)
-    width = 24
-    strokes = [
-        [(128, 52), (128, 158)],              # ก้านลูกศร
-        [(82, 114), (128, 160), (174, 114)],  # หัวลูกศร
-        [(68, 202), (188, 202)],              # เส้นฐาน
-    ]
-    for points in strokes:
-        draw.line(points, fill=white, width=width, joint="curve")
-        for x, y in (points[0], points[-1]):
-            r = width // 2
-            draw.ellipse([x - r, y - r, x + r, y + r], fill=white)
-    img.save(path, sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])
 
 
 def prepare_binaries(bin_dir: Path) -> list[Path]:
@@ -68,7 +49,7 @@ def main() -> None:
 
     print("เตรียมไฟล์ประกอบ…")
     icon = BUILD / "icon.ico"
-    make_icon(icon)
+    make_ico(icon)
     binaries = prepare_binaries(BUILD / "bin")
 
     sep = os.pathsep
@@ -99,6 +80,15 @@ def main() -> None:
     exe = DIST / NAME / (NAME + EXE)
     if not exe.is_file():
         sys.exit(f"build ไม่สำเร็จ: ไม่พบ {exe}")
+
+    # ส่วนเสริมเบราว์เซอร์: วางไว้ข้างโปรแกรม (ผู้ใช้เลือกโฟลเดอร์นี้ตอน Load unpacked) + ทำไฟล์ zip แยก
+    extension_src = ROOT / "browser-extension"
+    shutil.copytree(extension_src, DIST / NAME / "extension")
+    staged = BUILD / "VideoDownloader-Extension"
+    shutil.copytree(extension_src, staged)
+    zip_path = shutil.make_archive(str(DIST / "VideoDownloader-Extension"), "zip",
+                                   root_dir=BUILD, base_dir=staged.name)
+    print(f"ส่วนเสริมเบราว์เซอร์: {DIST / NAME / 'extension'}  และ  {zip_path}")
     total = sum(f.stat().st_size for f in (DIST / NAME).rglob("*") if f.is_file())
     print(f"\nเสร็จแล้ว: {exe}  (ทั้งโฟลเดอร์ {total / 1e6:.0f} MB)")
 

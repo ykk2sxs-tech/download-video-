@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>โหลดวิดีโอ</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon32.png" width="24" height="24" alt="">
+    <h1>โหลดวิดีโอ</h1>
+    <span class="status" id="status"><i></i><span>กำลังเชื่อมต่อ…</span></span>
+  </header>
+
+  <section class="card hidden" id="offline">
+    <p class="offline-title">ยังไม่ได้เปิดแอป "โหลดวิดีโอ"</p>
+    <p class="muted">ส่วนเสริมนี้ส่งลิงก์ไปให้แอปบนเครื่องเป็นผู้ดาวน์โหลด จึงต้องเปิดแอปไว้</p>
+    <button type="button" class="primary block" id="launchBtn">เปิดแอป</button>
+    <p class="muted small">ถ้ากดแล้วไม่เปิด ให้ดับเบิลคลิกไอคอน "โหลดวิดีโอ" บนหน้าจอ (แบบ Portable: ดับเบิลคลิก VideoDownloader.exe)
+      · <a href="#" id="installLink">ยังไม่ได้ติดตั้งแอป?</a></p>
+  </section>
+
+  <section class="card" id="main">
+    <div class="page-row hidden" id="pageRow">
+      <span class="chip hidden" id="platformChip"></span>
+      <span class="page-title" id="pageTitle"></span>
+    </div>
+    <label class="lbl" for="url">ลิงก์วิดีโอ</label>
+    <input type="text" id="url" placeholder="วางลิงก์ YouTube / Facebook / Zoom" spellcheck="false">
+    <p class="hint warn hidden" id="pageHint"></p>
+
+    <div class="qualities" id="qualities" role="radiogroup" aria-label="คุณภาพ"></div>
+
+    <div class="hidden" id="zoomBox">
+      <label class="lbl" for="password">รหัสผ่าน Zoom (ถ้ามี)</label>
+      <input type="password" id="password" placeholder="Passcode">
+    </div>
+
+    <label class="check">
+      <input type="checkbox" id="useLogin">
+      <span>ใช้การล็อกอินของเบราว์เซอร์นี้<small>สำหรับวิดีโอส่วนตัว / กลุ่มปิด หรือเมื่อ YouTube ขอยืนยันตัวตน</small></span>
+    </label>
+
+    <button type="button" class="primary block big" id="downloadBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+      <span>ดาวน์โหลด</span>
+    </button>
+    <p class="msg hidden" id="formMsg" role="alert"></p>
+  </section>
+
+  <section id="jobsSection" class="hidden">
+    <h2>ล่าสุด</h2>
+    <div id="jobs"></div>
+  </section>
+
+  <footer>
+    <a href="#" id="openApp">เปิดหน้าแอปเต็ม</a>
+    <a href="#" id="openFolder">โฟลเดอร์ดาวน์โหลด</a>
+  </footer>
+<script type="module" src="popup.js"></script>
+</body>
+</html>

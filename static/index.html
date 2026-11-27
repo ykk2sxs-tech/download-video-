@@ -182,6 +182,27 @@
   footer p { margin: 4px 0; }
   .mono { font-family: ui-monospace, Consolas, monospace; font-size: .82rem; word-break: break-all; }
 
+  details.ext { margin-top: 26px; }
+  details.ext > summary {
+    cursor: pointer; font-weight: 700; list-style: none; display: flex; align-items: center; gap: 10px;
+  }
+  details.ext > summary::-webkit-details-marker { display: none; }
+  details.ext > summary .chev { margin-left: auto; flex: none; color: var(--muted); transition: transform .2s; }
+  details.ext[open] > summary .chev { transform: rotate(180deg); }
+  details.ext > summary small { display: block; font-weight: 400; color: var(--muted); font-size: .86rem; }
+  .ext-icon {
+    width: 36px; height: 36px; border-radius: 10px; background: var(--primary-soft); color: var(--primary);
+    display: grid; place-items: center; flex: none;
+  }
+  .ext-icon svg { width: 20px; height: 20px; }
+  ol.steps { margin: 16px 0 0; padding-left: 1.3em; display: grid; gap: 12px; }
+  ol.steps li::marker { font-weight: 700; color: var(--primary); }
+  .steps .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+  code.kbd {
+    font-family: ui-monospace, Consolas, monospace; font-size: .88rem; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px;
+  }
+
   .spin { animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .hidden { display: none !important; }
@@ -285,6 +306,43 @@
     </div>
     <div id="jobs"><div class="card empty">ยังไม่มีรายการ — วางลิงก์ด้านบนเพื่อเริ่มต้น</div></div>
   </main>
+
+  <details class="card ext" id="extBox">
+    <summary>
+      <span class="ext-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3h4v3a2 2 0 1 0 4 0V3h3v7h-3a2 2 0 1 0 0 4h3v7h-7v-3a2 2 0 1 0-4 0v3H3v-7h3a2 2 0 1 0 0-4H3V3z"/></svg>
+      </span>
+      <span>ติดตั้งส่วนเสริมเบราว์เซอร์ (Chrome / Edge)
+        <small>ดาวน์โหลดได้ในคลิกเดียวจากหน้าวิดีโอ ไม่ต้องคัดลอกลิงก์</small></span>
+      <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <ol class="steps">
+      <li>เปิดโฟลเดอร์ส่วนเสริม
+        <div class="row">
+          <button type="button" class="small" id="openExtBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            เปิดโฟลเดอร์ส่วนเสริม
+          </button>
+          <span class="mono" id="extPath"></span>
+        </div>
+      </li>
+      <li>ในเบราว์เซอร์ พิมพ์ที่อยู่นี้ในช่อง URL แล้วกด Enter
+        <div class="row">
+          <code class="kbd">chrome://extensions</code>
+          <button type="button" class="small ghost copy" data-copy="chrome://extensions">คัดลอก</button>
+          <span class="hint">Edge:</span>
+          <code class="kbd">edge://extensions</code>
+          <button type="button" class="small ghost copy" data-copy="edge://extensions">คัดลอก</button>
+        </div>
+      </li>
+      <li>เปิดสวิตช์ <b>Developer mode</b> (โหมดนักพัฒนาซอฟต์แวร์) — Chrome อยู่มุมขวาบน, Edge อยู่แถบซ้าย</li>
+      <li>กด <b>Load unpacked</b> (โหลดส่วนขยายที่คลายการแพ็ก) แล้วเลือกโฟลเดอร์จากข้อ 1</li>
+      <li>กดไอคอนจิ๊กซอว์บนแถบเครื่องมือ แล้ว <b>ปักหมุด</b> "โหลดวิดีโอ" ไว้</li>
+    </ol>
+    <p class="hint">วิธีใช้: เปิดหน้าวิดีโอ → กดไอคอน "โหลดวิดีโอ" → ดาวน์โหลด หรือคลิกขวาที่ลิงก์วิดีโอ →
+      "ดาวน์โหลดวิดีโอจากลิงก์นี้" · ต้องเปิดแอปนี้ไว้ (ส่วนเสริมมีปุ่มสั่งเปิดแอปให้)
+      · วิดีโอส่วนตัว/กลุ่มปิด ให้ติ๊ก "ใช้การล็อกอินของเบราว์เซอร์นี้" ในส่วนเสริม</p>
+  </details>
 
   <footer>
     <p>ไฟล์บันทึกไว้ที่ <span class="mono" id="dirPath">…</span></p>
@@ -564,8 +622,21 @@
   els.openFolder.addEventListener("click", openFolder);
 
   // ---------- init ----------
+  $("openExtBtn").addEventListener("click", async () => {
+    try { await api("/api/open-extension-folder", {}); } catch (err) { alert(err.message); }
+  });
+  document.querySelectorAll("button.copy").forEach((btn) => btn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(btn.dataset.copy);
+      btn.textContent = "คัดลอกแล้ว ✓";
+      setTimeout(() => { btn.textContent = "คัดลอก"; }, 1500);
+    } catch (_) { /* เบราว์เซอร์ไม่อนุญาต */ }
+  }));
+
   api("/api/status").then((s) => {
     els.dirPath.textContent = s.download_dir;
+    $("extBox").classList.toggle("hidden", !s.extension_dir);
+    $("extPath").textContent = s.extension_dir || "";
     els.versionInfo.textContent = `yt-dlp ${s.yt_dlp_version}` + (s.ffmpeg ? "" : " · ⚠ ไม่พบ ffmpeg (รวมภาพ+เสียง/แปลง MP3 ไม่ได้)");
   }).catch(() => {});
   api("/api/jobs").then((list) => {

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import gc
+import http.cookiejar
 import logging
 import os
 import re
@@ -58,6 +59,12 @@ def user_downloads_folder() -> Path:
             pass
     return Path.home() / "Downloads"
 
+
+# ส่วนเสริมเบราว์เซอร์: ใน .exe อยู่ข้างโปรแกรม (โฟลเดอร์ extension) / ตอนพัฒนาอยู่ใน browser-extension/
+EXTENSION_DIR = Path(sys.executable).parent / "extension" if FROZEN else BASE_DIR / "browser-extension"
+# ส่วนเสริมสั่งเปิดแอปผ่านลิงก์ videodownloader://start (ตัวติดตั้งลงทะเบียนไว้ใน Windows)
+PROTOCOL_SCHEME = "videodownloader"
+LAUNCHED_BY_PROTOCOL = any(arg.lower().startswith(PROTOCOL_SCHEME + ":") for arg in sys.argv[1:])
 
 DEFAULT_DOWNLOAD_DIR = user_downloads_folder() / "VideoDownloader" if FROZEN else BASE_DIR / "downloads"
 DOWNLOAD_DIR = Path(os.environ.get("DOWNLOAD_DIR", DEFAULT_DOWNLOAD_DIR)).resolve()
@@ -193,8 +200,9 @@ def friendly_error(message: str, platform: str | None) -> str:
     elif "unsupported url" in low:
         hint = "ไม่รองรับลิงก์นี้ — ตรวจสอบว่าเป็นลิงก์วิดีโอจาก YouTube, Facebook หรือ Zoom"
     elif "not a bot" in low or "sign in to confirm" in low:
-        hint = ("YouTube ขอให้ยืนยันตัวตน — เปิด \"ตัวเลือกเพิ่มเติม\" แล้วเลือกใช้ cookies "
-                "จากเบราว์เซอร์ที่ล็อกอิน YouTube ไว้")
+        hint = ("YouTube ขอให้ยืนยันตัวตน — ให้ใช้การล็อกอินจากเบราว์เซอร์: ในส่วนเสริมติ๊ก "
+                "\"ใช้การล็อกอินของเบราว์เซอร์นี้\" หรือในหน้าแอปเปิด \"ตัวเลือกเพิ่มเติม\" "
+                "แล้วเลือกเบราว์เซอร์ที่ล็อกอิน YouTube ไว้ (cookies)")
     elif "could not find" in low and "cookie" in low:
         hint = ("ไม่พบข้อมูลการล็อกอินของเบราว์เซอร์ที่เลือกในเครื่องนี้ — ตรวจสอบว่าติดตั้งและล็อกอินไว้แล้ว "
                 "หรือเลือกเบราว์เซอร์อื่น")
@@ -202,8 +210,8 @@ def friendly_error(message: str, platform: str | None) -> str:
         hint = ("อ่าน cookies จากเบราว์เซอร์ไม่ได้ — ลองปิดเบราว์เซอร์นั้นก่อน หรือเปลี่ยนไปใช้ Firefox")
     elif any(k in low for k in ("private", "login", "log in", "logged-in", "registered users",
                                 "cookies", "permission", "members only", "only available to")):
-        hint = ("วิดีโอนี้เป็นแบบส่วนตัวหรือต้องล็อกอิน — เปิด \"ตัวเลือกเพิ่มเติม\" แล้วเลือก "
-                "เบราว์เซอร์ที่ล็อกอินบัญชีไว้ เพื่อใช้ cookies")
+        hint = ("วิดีโอนี้เป็นแบบส่วนตัวหรือต้องล็อกอิน — ในส่วนเสริมติ๊ก \"ใช้การล็อกอินของเบราว์เซอร์นี้\" "
+                "หรือในหน้าแอปเปิด \"ตัวเลือกเพิ่มเติม\" แล้วเลือกเบราว์เซอร์ที่ล็อกอินบัญชีไว้ (cookies)")
     elif "video unavailable" in low or "removed" in low or "does not exist" in low or "404" in low:
         hint = "ไม่พบวิดีโอ หรือวิดีโอถูกลบ/ปิดการเข้าถึงแล้ว"
     elif "ffmpeg" in low:
@@ -248,7 +256,44 @@ def base_ydl_opts(password: str | None = None, cookies_browser: str | None = Non
     return opts
 
 
-def read_common_params(data: dict) -> tuple[str, str | None, str | None]:
+MAX_COOKIES = 400
+
+
+def parse_cookies(raw) -> list[http.cookiejar.Cookie]:
+    """แปลง cookies ที่ส่วนเสริมส่งมา (รูปแบบเดียวกับ chrome.cookies.getAll) เป็น Cookie ของ Python
+
+    ใช้เฉพาะในหน่วยความจำระหว่างดาวน์โหลด ไม่บันทึกลงดิสก์
+    """
+    if not raw:
+        return []
+    if not isinstance(raw, list) or len(raw) > MAX_COOKIES:
+        raise ValueError("ข้อมูลการล็อกอิน (cookies) จากเบราว์เซอร์ไม่ถูกต้อง")
+    cookies = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError("ข้อมูลการล็อกอิน (cookies) จากเบราว์เซอร์ไม่ถูกต้อง")
+        name, value, domain = item.get("name"), item.get("value", ""), item.get("domain")
+        if not (isinstance(name, str) and name and isinstance(value, str)
+                and isinstance(domain, str) and domain.strip(".")):
+            raise ValueError("ข้อมูลการล็อกอิน (cookies) จากเบราว์เซอร์ไม่ถูกต้อง")
+        if len(name) + len(value) > 8192:
+            raise ValueError("ข้อมูลการล็อกอิน (cookies) จากเบราว์เซอร์มีขนาดใหญ่เกินไป")
+        host_only = bool(item.get("hostOnly"))
+        domain = domain.lower().lstrip(".") if host_only else "." + domain.lower().lstrip(".")
+        expires = item.get("expirationDate")
+        expires = int(expires) if isinstance(expires, (int, float)) else None
+        path = item.get("path") if isinstance(item.get("path"), str) and item.get("path") else "/"
+        cookies.append(http.cookiejar.Cookie(
+            version=0, name=name, value=value, port=None, port_specified=False,
+            domain=domain, domain_specified=not host_only, domain_initial_dot=not host_only,
+            path=path, path_specified=True, secure=bool(item.get("secure")),
+            expires=expires, discard=expires is None, comment=None, comment_url=None,
+            rest={"HttpOnly": ""} if item.get("httpOnly") else {}, rfc2109=False,
+        ))
+    return cookies
+
+
+def read_common_params(data: dict):
     url = extract_url(data.get("url"))
     if not url:
         raise ValueError("ไม่พบลิงก์ในข้อความที่วาง — กรุณาคัดลอกลิงก์วิดีโอมาวางอีกครั้ง")
@@ -256,7 +301,15 @@ def read_common_params(data: dict) -> tuple[str, str | None, str | None]:
     browser = (data.get("cookies_browser") or "").strip().lower() or None
     if browser and browser not in SUPPORTED_BROWSERS:
         raise ValueError("ไม่รองรับเบราว์เซอร์นี้")
-    return url, password, browser
+    cookies = parse_cookies(data.get("cookies"))
+    return url, password, browser, cookies
+
+
+def open_ydl(opts: dict, cookies: list[http.cookiejar.Cookie]) -> yt_dlp.YoutubeDL:
+    ydl = yt_dlp.YoutubeDL(opts)
+    for cookie in cookies:
+        ydl.cookiejar.set_cookie(cookie)
+    return ydl
 
 
 # ---------------------------------------------------------------------------
@@ -282,7 +335,8 @@ def public_job(job: dict) -> dict:
     return {k: v for k, v in job.items() if not k.startswith("_")}
 
 
-def run_download(job_id: str, url: str, quality: str, password: str | None, browser: str | None):
+def run_download(job_id: str, url: str, quality: str, password: str | None, browser: str | None,
+                 cookies: list[http.cookiejar.Cookie] | None = None):
     job = jobs[job_id]
     platform = detect_platform(url)
     job_tmp = TEMP_DIR / job_id
@@ -345,7 +399,7 @@ def run_download(job_id: str, url: str, quality: str, password: str | None, brow
             return
         job.update(status="starting", message="กำลังเตรียมดาวน์โหลด…")
         try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
+            with open_ydl(opts, cookies or []) as ydl:
                 info = ydl.extract_info(url, download=True)
             downloads = info.get("requested_downloads") or [{}]
             filepath = downloads[0].get("filepath") or info.get("filepath")
@@ -426,6 +480,7 @@ def status():
         ffmpeg=bool(FFMPEG_PATH),
         js_runtimes=sorted(JS_RUNTIMES),
         download_dir=str(DOWNLOAD_DIR),
+        extension_dir=str(EXTENSION_DIR) if EXTENSION_DIR.is_dir() else None,
         frozen=FROZEN,
         tools={
             "ffmpeg": FFMPEG_PATH,
@@ -439,14 +494,14 @@ def status():
 def video_info():
     data = json_body()
     try:
-        url, password, browser = read_common_params(data)
+        url, password, browser, cookies = read_common_params(data)
     except ValueError as exc:
         return jsonify(error=str(exc)), 400
     platform = detect_platform(url)
     opts = base_ydl_opts(password, browser)
     opts["skip_download"] = True
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with open_ydl(opts, cookies) as ydl:
             info = ydl.extract_info(url, download=False)
     except Exception as exc:  # noqa: BLE001
         return jsonify(error=friendly_error(str(exc), platform), url=url, platform=platform), 422
@@ -481,7 +536,7 @@ def video_info():
 def start_download():
     data = json_body()
     try:
-        url, password, browser = read_common_params(data)
+        url, password, browser, cookies = read_common_params(data)
     except ValueError as exc:
         return jsonify(error=str(exc)), 400
     quality = str(data.get("quality") or "1080")
@@ -506,7 +561,7 @@ def start_download():
     with jobs_lock:
         jobs[job_id] = job
     threading.Thread(
-        target=run_download, args=(job_id, url, quality, password, browser), daemon=True
+        target=run_download, args=(job_id, url, quality, password, browser, cookies), daemon=True
     ).start()
     return jsonify(public_job(job)), 202
 
@@ -548,22 +603,63 @@ def job_file(job_id):
     return send_file(path, as_attachment=True, download_name=path.name)
 
 
+def open_path(path: Path, reveal: bool = False) -> None:
+    """เปิดไฟล์/โฟลเดอร์ด้วยโปรแกรมของเครื่อง (reveal=True: เปิดโฟลเดอร์และเลือกไฟล์นั้นไว้)"""
+    if sys.platform.startswith("win"):
+        if reveal:
+            subprocess.Popen(["explorer", "/select,", str(path)])
+        else:
+            os.startfile(path)  # type: ignore[attr-defined]
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", str(path)] if reveal else ["open", str(path)])
+    else:
+        subprocess.Popen(["xdg-open", str(path.parent if reveal else path)])
+
+
+def local_only():
+    if HOST not in LOOPBACK_HOSTS:
+        abort(403, description="ใช้ได้เฉพาะเมื่อเปิดแอปบนเครื่องตัวเอง")
+
+
 @app.post("/api/open-folder")
 def open_folder():
     """เปิดโฟลเดอร์ downloads ในเครื่อง (ใช้ได้เมื่อรันแอปบนเครื่องตัวเอง)"""
-    if HOST not in LOOPBACK_HOSTS:
-        return jsonify(error="ใช้ได้เฉพาะเมื่อเปิดแอปบนเครื่องตัวเอง"), 403
+    local_only()
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
     try:
-        if sys.platform.startswith("win"):
-            os.startfile(DOWNLOAD_DIR)  # type: ignore[attr-defined]
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", str(DOWNLOAD_DIR)])
-        else:
-            subprocess.Popen(["xdg-open", str(DOWNLOAD_DIR)])
+        open_path(DOWNLOAD_DIR)
     except Exception as exc:  # noqa: BLE001
         return jsonify(error=f"เปิดโฟลเดอร์ไม่ได้: {exc}", path=str(DOWNLOAD_DIR)), 500
     return jsonify(ok=True, path=str(DOWNLOAD_DIR))
+
+
+@app.post("/api/jobs/<job_id>/open")
+def open_job_file(job_id):
+    """เปิดไฟล์ที่ดาวน์โหลดเสร็จ (reveal=true: เปิดโฟลเดอร์และชี้ไปที่ไฟล์)"""
+    local_only()
+    job = jobs.get(job_id)
+    if not job or job.get("status") != "done":
+        abort(404)
+    path = Path(job["_filepath"])
+    if not path.is_file():
+        return jsonify(error="ไม่พบไฟล์ (อาจถูกย้ายหรือลบไปแล้ว)"), 404
+    try:
+        open_path(path, reveal=bool(json_body().get("reveal")))
+    except Exception as exc:  # noqa: BLE001
+        return jsonify(error=f"เปิดไฟล์ไม่ได้: {exc}"), 500
+    return jsonify(ok=True)
+
+
+@app.post("/api/open-extension-folder")
+def open_extension_folder():
+    local_only()
+    if not EXTENSION_DIR.is_dir():
+        return jsonify(error="ไม่พบโฟลเดอร์ส่วนเสริมในเครื่องนี้", path=str(EXTENSION_DIR)), 404
+    try:
+        open_path(EXTENSION_DIR)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify(error=f"เปิดโฟลเดอร์ไม่ได้: {exc}", path=str(EXTENSION_DIR)), 500
+    return jsonify(ok=True, path=str(EXTENSION_DIR))
 
 
 @app.errorhandler(400)
@@ -608,7 +704,9 @@ def already_running(url: str) -> bool:
 
 
 def open_browser_enabled() -> bool:
-    return "--no-browser" not in sys.argv and not os.environ.get("NO_BROWSER")
+    # เปิดจากส่วนเสริม (videodownloader://) ไม่ต้องเปิดหน้าเว็บซ้ำ เพราะผู้ใช้ใช้งานผ่านส่วนเสริมอยู่แล้ว
+    return ("--no-browser" not in sys.argv and not os.environ.get("NO_BROWSER")
+            and not LAUNCHED_BY_PROTOCOL)
 
 
 def pause_before_exit():
