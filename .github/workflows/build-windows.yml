@@ -118,7 +118,29 @@ jobs:
           zip -qr VideoDownloader-Portable.zip VideoDownloader
       - uses: softprops/action-gh-release@v2
         with:
+          name: Video Downloader ${{ github.ref_name }}
           files: |
             artifacts/VideoDownloader-Setup/VideoDownloader-Setup.exe
             artifacts/VideoDownloader-Portable.zip
+          body: |
+            ## ดาวน์โหลด (Windows 10/11 แบบ 64-bit)
+
+            | ไฟล์ | ใช้เมื่อ |
+            |---|---|
+            | **VideoDownloader-Setup.exe** | ติดตั้งลงเครื่อง มีไอคอนบนหน้าจอ (แนะนำ) |
+            | **VideoDownloader-Portable.zip** | ไม่ต้องติดตั้ง — แตกไฟล์แล้วดับเบิลคลิก `VideoDownloader.exe` |
+
+            ## วิธีติดตั้ง
+
+            1. คลิก **VideoDownloader-Setup.exe** ในหัวข้อ Assets ด้านล่างเพื่อดาวน์โหลด
+            2. ดับเบิลคลิกไฟล์ → กด **Next** → **Install** (ไม่ต้องใช้สิทธิ์ Admin)
+               - ถ้าขึ้น **"Windows protected your PC"** ให้กด **More info → Run anyway**
+                 (โปรแกรมยังไม่ได้ซื้อใบรับรอง code signing ไม่ใช่ไวรัส)
+            3. เปิดโปรแกรมจากไอคอน **"โหลดวิดีโอ"** บนหน้าจอ → เบราว์เซอร์จะเปิดหน้าแอปเอง
+            4. คัดลอกลิงก์ YouTube / Facebook / Zoom มาวาง → เลือกคุณภาพ → ดาวน์โหลด
+            5. ไฟล์จะอยู่ที่ **Downloads\VideoDownloader** — ปิดหน้าต่างสีดำเมื่อเลิกใช้
+
+            ถ้าวันหนึ่งโหลดจาก YouTube/Facebook ไม่ได้ ให้ดาวน์โหลดเวอร์ชันใหม่ล่าสุดจากหน้านี้มาติดตั้งทับ
+
+            ใช้ดาวน์โหลดเฉพาะวิดีโอที่คุณมีสิทธิ์ใช้งาน เช่น บันทึกการประชุมของบริษัท หรือคลิปของตัวเอง
           generate_release_notes: true
