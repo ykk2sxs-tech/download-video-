@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>โหลดวิดีโอ</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%232563eb'/%3E%3Cpath d='M12 6v8m0 0-3.5-3.5M12 14l3.5-3.5M7 18h10' stroke='white' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --surface: #ffffff;
+    --surface-2: #f1f4f9;
+    --border: #dfe4ee;
+    --text: #172033;
+    --muted: #5d6880;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --primary-soft: #e6eefe;
+    --on-primary: #ffffff;
+    --success: #15803d;
+    --success-soft: #e3f6ea;
+    --danger: #c42b2b;
+    --danger-soft: #fdecec;
+    --warn: #9a6200;
+    --warn-soft: #fff4dc;
+    --yt: #e62117;
+    --fb: #1877f2;
+    --zoom: #0b5cff;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 6px 20px rgba(16, 24, 40, .06);
+    --radius: 14px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f141d;
+      --surface: #171e2a;
+      --surface-2: #1f2836;
+      --border: #2c3647;
+      --text: #e7ebf3;
+      --muted: #9aa5b8;
+      --primary: #4c8dff;
+      --primary-hover: #6ea2ff;
+      --primary-soft: #1d2c48;
+      --on-primary: #0b1220;
+      --success: #4ade80;
+      --success-soft: #16301f;
+      --danger: #f87171;
+      --danger-soft: #3a1c1c;
+      --warn: #fbbf24;
+      --warn-soft: #3a2c10;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141d; --surface: #171e2a; --surface-2: #1f2836; --border: #2c3647;
+    --text: #e7ebf3; --muted: #9aa5b8; --primary: #4c8dff; --primary-hover: #6ea2ff;
+    --primary-soft: #1d2c48; --on-primary: #0b1220; --success: #4ade80; --success-soft: #16301f;
+    --danger: #f87171; --danger-soft: #3a1c1c; --warn: #fbbf24; --warn-soft: #3a2c10;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", "Leelawadee UI", "Noto Sans Thai", "Sukhumvit Set", Tahoma, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
+
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .logo {
+    width: 48px; height: 48px; border-radius: 12px; background: var(--primary);
+    display: grid; place-items: center; flex: none;
+  }
+  .logo svg { width: 26px; height: 26px; stroke: #fff; }
+  h1 { font-size: 1.5rem; margin: 0; line-height: 1.25; }
+  .subtitle { margin: 2px 0 0; color: var(--muted); font-size: .95rem; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px;
+  }
+  .card + .card, .section { margin-top: 18px; }
+
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; font-weight: 600;
+    padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border);
+    color: var(--muted); background: var(--surface-2); transition: all .15s;
+  }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .chip[data-p="youtube"] i { background: var(--yt); }
+  .chip[data-p="facebook"] i { background: var(--fb); }
+  .chip[data-p="zoom"] i { background: var(--zoom); }
+  .chip.active { color: var(--text); border-color: var(--primary); background: var(--primary-soft); }
+
+  label.lbl { display: block; font-weight: 600; margin-bottom: 6px; }
+  .input-row { display: flex; gap: 8px; }
+  input[type="text"], input[type="password"], select {
+    width: 100%; font: inherit; color: var(--text); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; min-width: 0;
+  }
+  input:focus, select:focus, button:focus-visible, summary:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--primary) 35%, transparent); outline-offset: 1px;
+    border-color: var(--primary);
+  }
+  button, a.btn {
+    font: inherit; text-decoration: none; font-weight: 600; border-radius: 10px; padding: 10px 16px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap;
+  }
+  button:hover:not(:disabled), a.btn:hover { border-color: var(--primary); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  button.primary, a.btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+  button.primary:hover:not(:disabled), a.btn.primary:hover { background: var(--primary-hover); }
+  button.big { width: 100%; padding: 13px 18px; font-size: 1.05rem; }
+  button.small, a.btn.small { padding: 6px 11px; font-size: .88rem; }
+  button.ghost { background: transparent; }
+  button svg { width: 18px; height: 18px; flex: none; }
+
+  details.adv { margin-top: 14px; }
+  details.adv summary { cursor: pointer; color: var(--muted); font-size: .93rem; user-select: none; }
+  .adv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  .hint { color: var(--muted); font-size: .84rem; margin: 5px 0 0; }
+
+  .alert {
+    border-radius: 10px; padding: 12px 14px; margin-top: 14px; font-size: .93rem;
+    white-space: pre-line; border: 1px solid transparent;
+  }
+  .alert.error { background: var(--danger-soft); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
+  .alert.warn { background: var(--warn-soft); color: var(--warn); }
+
+  .preview { display: grid; grid-template-columns: 200px 1fr; gap: 16px; align-items: start; }
+  .thumb {
+    width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; object-fit: cover;
+    background: var(--surface-2); border: 1px solid var(--border); display: block;
+  }
+  .thumb-ph { display: grid; place-items: center; color: var(--muted); font-size: .85rem; }
+  .vtitle { font-weight: 700; font-size: 1.05rem; margin: 0 0 4px; word-break: break-word; }
+  .meta { color: var(--muted); font-size: .9rem; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+
+  .qualities { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+  .q input { position: absolute; opacity: 0; pointer-events: none; }
+  .q span {
+    display: inline-block; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border);
+    cursor: pointer; font-weight: 600; font-size: .93rem; background: var(--surface);
+  }
+  .q span small { font-weight: 400; color: var(--muted); }
+  .q input:checked + span { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+  .q input:checked + span small { color: inherit; }
+  .q input:focus-visible + span { outline: 3px solid color-mix(in srgb, var(--primary) 35%, transparent); }
+  .q input:disabled + span { opacity: .45; cursor: not-allowed; }
+
+  .section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 26px 0 10px; }
+  h2 { font-size: 1.1rem; margin: 0; }
+
+  .job { padding: 14px 16px; }
+  .job + .job { margin-top: 10px; }
+  .job-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+  .job-title { font-weight: 600; word-break: break-word; margin: 0; }
+  .job-sub { color: var(--muted); font-size: .85rem; }
+  .badge {
+    font-size: .78rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+    background: var(--surface-2); color: var(--muted);
+  }
+  .badge.done { background: var(--success-soft); color: var(--success); }
+  .badge.error { background: var(--danger-soft); color: var(--danger); }
+  .badge.active { background: var(--primary-soft); color: var(--primary); }
+  .bar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin: 10px 0 6px; border: 1px solid var(--border); }
+  .bar > div { height: 100%; width: 0; background: var(--primary); border-radius: 99px; transition: width .4s ease; }
+  .job.done .bar > div { background: var(--success); }
+  .job-line { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: .85rem; flex-wrap: wrap; }
+  .job-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .empty { color: var(--muted); text-align: center; padding: 22px; font-size: .93rem; }
+
+  footer { margin-top: 30px; color: var(--muted); font-size: .84rem; text-align: center; }
+  footer p { margin: 4px 0; }
+  .mono { font-family: ui-monospace, Consolas, monospace; font-size: .82rem; word-break: break-all; }
+
+  .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .hidden { display: none !important; }
+
+  @media (max-width: 600px) {
+    .wrap { padding-top: 20px; }
+    .preview { grid-template-columns: 1fr; }
+    .adv-grid { grid-template-columns: 1fr; }
+    .input-row { flex-wrap: wrap; }
+    .input-row input { flex: 1 1 100%; }
+    .input-row button { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+    </div>
+    <div>
+      <h1>โหลดวิดีโอ</h1>
+      <p class="subtitle">คัดลอกลิงก์ วางที่นี่ แล้วกดดาวน์โหลด</p>
+    </div>
+  </header>
+
+  <main>
+    <form class="card" id="urlForm" autocomplete="off">
+      <div class="chips" aria-label="แพลตฟอร์มที่รองรับ">
+        <span class="chip" data-p="youtube"><i></i>YouTube</span>
+        <span class="chip" data-p="facebook"><i></i>Facebook</span>
+        <span class="chip" data-p="zoom"><i></i>Zoom (บันทึกการประชุม)</span>
+      </div>
+      <label class="lbl" for="url">ลิงก์วิดีโอ</label>
+      <div class="input-row">
+        <input type="text" id="url" placeholder="เช่น https://youtu.be/… หรือ https://zoom.us/rec/share/…" inputmode="url">
+        <button type="button" id="pasteBtn" title="วางลิงก์จากคลิปบอร์ด">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg>
+          วาง
+        </button>
+        <button type="submit" class="primary" id="checkBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <span>ตรวจสอบ</span>
+        </button>
+      </div>
+
+      <details class="adv" id="adv">
+        <summary>ตัวเลือกเพิ่มเติม (รหัสผ่าน Zoom / วิดีโอส่วนตัว)</summary>
+        <div class="adv-grid">
+          <div>
+            <label class="lbl" for="password">รหัสผ่าน Zoom (Passcode)</label>
+            <input type="password" id="password" placeholder="ถ้ามี">
+            <p class="hint">ใส่เมื่อบันทึกการประชุม Zoom ตั้งรหัสไว้</p>
+          </div>
+          <div>
+            <label class="lbl" for="browser">ใช้การล็อกอินจากเบราว์เซอร์</label>
+            <select id="browser">
+              <option value="">ไม่ใช้</option>
+              <option value="firefox">Firefox</option>
+              <option value="chrome">Google Chrome</option>
+              <option value="edge">Microsoft Edge</option>
+              <option value="brave">Brave</option>
+              <option value="safari">Safari (Mac)</option>
+            </select>
+            <p class="hint">สำหรับวิดีโอส่วนตัว/กลุ่มปิดใน Facebook — ต้องล็อกอินในเบราว์เซอร์นั้นไว้ (Chrome/Edge ให้ปิดเบราว์เซอร์ก่อน)</p>
+          </div>
+        </div>
+      </details>
+
+      <div class="alert error hidden" id="formError" role="alert"></div>
+    </form>
+
+    <section class="card hidden" id="previewCard" aria-live="polite">
+      <div class="preview">
+        <div id="thumbBox"></div>
+        <div>
+          <p class="vtitle" id="vTitle"></p>
+          <div class="meta" id="vMeta"></div>
+        </div>
+      </div>
+      <div class="alert warn hidden" id="liveWarn">วิดีโอนี้กำลังถ่ายทอดสดอยู่ แนะนำให้รอจนไลฟ์จบแล้วค่อยดาวน์โหลด</div>
+      <div class="qualities" role="radiogroup" aria-label="เลือกคุณภาพ" id="qualities">
+        <label class="q"><input type="radio" name="quality" value="1080"><span>1080p <small>Full HD</small></span></label>
+        <label class="q"><input type="radio" name="quality" value="720"><span>720p <small>HD</small></span></label>
+        <label class="q"><input type="radio" name="quality" value="480"><span>480p <small>ไฟล์เล็ก</small></span></label>
+        <label class="q"><input type="radio" name="quality" value="best"><span>สูงสุด <small>อาจเป็น 4K</small></span></label>
+        <label class="q"><input type="radio" name="quality" value="audio"><span>MP3 <small>เสียงอย่างเดียว</small></span></label>
+      </div>
+      <button type="button" class="primary big" id="downloadBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+        ดาวน์โหลด
+      </button>
+    </section>
+
+    <div class="section-head">
+      <h2>รายการดาวน์โหลด</h2>
+      <button type="button" class="small ghost" id="openFolderBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        เปิดโฟลเดอร์ที่เก็บไฟล์
+      </button>
+    </div>
+    <div id="jobs"><div class="card empty">ยังไม่มีรายการ — วางลิงก์ด้านบนเพื่อเริ่มต้น</div></div>
+  </main>
+
+  <footer>
+    <p>ไฟล์บันทึกไว้ที่ <span class="mono" id="dirPath">…</span></p>
+    <p>ใช้ดาวน์โหลดเฉพาะวิดีโอที่คุณมีสิทธิ์ใช้งาน เช่น บันทึกการประชุมของบริษัท หรือคลิปของตัวเอง</p>
+    <p id="versionInfo"></p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    form: $("urlForm"), url: $("url"), paste: $("pasteBtn"), check: $("checkBtn"),
+    password: $("password"), browser: $("browser"), adv: $("adv"), formError: $("formError"),
+    preview: $("previewCard"), thumbBox: $("thumbBox"), vTitle: $("vTitle"), vMeta: $("vMeta"),
+    liveWarn: $("liveWarn"), qualities: $("qualities"), download: $("downloadBtn"),
+    jobs: $("jobs"), openFolder: $("openFolderBtn"), dirPath: $("dirPath"), versionInfo: $("versionInfo"),
+  };
+  const PLATFORM_HOSTS = {
+    youtube: ["youtube.com", "youtu.be", "youtube-nocookie.com"],
+    facebook: ["facebook.com", "fb.watch", "fb.com"],
+    zoom: ["zoom.us", "zoom.com"],
+  };
+  const ACTIVE = new Set(["queued", "starting", "downloading", "processing"]);
+  const STATUS_TEXT = {
+    queued: "รอคิว", starting: "กำลังเตรียม", downloading: "กำลังโหลด", processing: "กำลังประมวลผล",
+    done: "เสร็จแล้ว", error: "ไม่สำเร็จ", cancelled: "ยกเลิกแล้ว",
+  };
+  let currentInfo = null;
+  let jobs = [];
+  let pollTimer = null;
+
+  // ---------- helpers ----------
+  async function api(path, body) {
+    const opts = body === undefined ? {} : {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    };
+    const res = await fetch(path, opts);
+    let data = null;
+    try { data = await res.json(); } catch (_) { /* ignore */ }
+    if (!res.ok) throw new Error((data && data.error) || `เกิดข้อผิดพลาด (${res.status})`);
+    return data;
+  }
+  function findUrl(text) {
+    const m = (text || "").match(/https?:\/\/[^\s<>"'`]+/i);
+    if (m) return m[0];
+    const bare = (text || "").match(/(?:(?:www|m|web)\.)?(?:youtube\.com|youtu\.be|facebook\.com|fb\.watch|[\w-]+\.zoom\.us|zoom\.us)\/\S+/i);
+    return bare ? "https://" + bare[0] : null;
+  }
+  function detectPlatform(text) {
+    const url = findUrl(text);
+    if (!url) return null;
+    let host = "";
+    try { host = new URL(url).hostname.toLowerCase(); } catch (_) { return null; }
+    for (const [key, hosts] of Object.entries(PLATFORM_HOSTS)) {
+      if (hosts.some((d) => host === d || host.endsWith("." + d))) return key;
+    }
+    return null;
+  }
+  function fmtDuration(sec) {
+    if (!sec && sec !== 0) return "";
+    sec = Math.round(sec);
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+  }
+  function fmtBytes(b) {
+    if (!b) return "";
+    const units = ["B", "KB", "MB", "GB"];
+    let i = 0;
+    while (b >= 1024 && i < units.length - 1) { b /= 1024; i++; }
+    return `${b.toFixed(i >= 2 ? 1 : 0)} ${units[i]}`;
+  }
+  function fmtEta(sec) {
+    if (sec == null) return "";
+    if (sec < 60) return `เหลือ ${Math.max(1, Math.round(sec))} วินาที`;
+    const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+    return m >= 60 ? `เหลือ ${Math.floor(m / 60)} ชม. ${m % 60} นาที` : `เหลือ ${m} นาที ${s} วินาที`;
+  }
+  function el(tag, attrs = {}, children = []) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") node.className = v;
+      else if (k === "text") node.textContent = v;
+      else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+      else node.setAttribute(k, v);
+    }
+    for (const c of [].concat(children)) if (c) node.append(c);
+    return node;
+  }
+  function showError(msg) {
+    els.formError.textContent = msg || "";
+    els.formError.classList.toggle("hidden", !msg);
+  }
+  function setChecking(on) {
+    els.check.disabled = on;
+    els.check.querySelector("span").textContent = on ? "กำลังตรวจสอบ…" : "ตรวจสอบ";
+    els.check.querySelector("svg").classList.toggle("spin", on);
+  }
+  function highlightPlatform() {
+    const p = detectPlatform(els.url.value);
+    document.querySelectorAll(".chip").forEach((c) => c.classList.toggle("active", c.dataset.p === p));
+  }
+  function commonParams() {
+    return {
+      url: els.url.value,
+      password: els.password.value,
+      cookies_browser: els.browser.value,
+    };
+  }
+
+  // ---------- check link ----------
+  async function checkLink() {
+    showError("");
+    const text = els.url.value.trim();
+    if (!text) { showError("กรุณาวางลิงก์วิดีโอก่อน"); els.url.focus(); return; }
+    if (!findUrl(text)) { showError("ไม่พบลิงก์ในข้อความที่วาง — กรุณาคัดลอกลิงก์วิดีโอมาใหม่"); return; }
+    setChecking(true);
+    els.preview.classList.add("hidden");
+    try {
+      const info = await api("/api/info", commonParams());
+      currentInfo = info;
+      els.url.value = info.url;
+      renderPreview(info);
+    } catch (err) {
+      showError(err.message);
+      if (/Passcode|รหัสผ่าน|cookies|ล็อกอิน/.test(err.message)) els.adv.open = true;
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  function renderPreview(info) {
+    els.thumbBox.replaceChildren(
+      info.thumbnail
+        ? el("img", { class: "thumb", src: info.thumbnail, alt: "", referrerpolicy: "no-referrer",
+            onerror: (e) => e.target.replaceWith(el("div", { class: "thumb thumb-ph", text: info.platform_name })) })
+        : el("div", { class: "thumb thumb-ph", text: info.platform_name })
+    );
+    els.vTitle.textContent = info.title;
+    const meta = [info.platform_name, info.uploader, info.duration ? `ความยาว ${fmtDuration(info.duration)}` : "",
+      info.heights && info.heights.length ? `สูงสุด ${info.heights[0]}p` : ""].filter(Boolean);
+    els.vMeta.replaceChildren(...meta.map((t) => el("span", { text: t })));
+    els.liveWarn.classList.toggle("hidden", !info.is_live);
+
+    // ปิดตัวเลือกที่ความละเอียดสูงกว่าที่วิดีโอมี
+    const maxH = info.heights && info.heights.length ? info.heights[0] : null;
+    let firstEnabled = null;
+    els.qualities.querySelectorAll("input").forEach((input) => {
+      const h = parseInt(input.value, 10);
+      const disabled = !isNaN(h) && maxH !== null && maxH < h && h !== 480;
+      input.disabled = disabled;
+      if (!disabled && !isNaN(h) && firstEnabled === null) firstEnabled = input;
+    });
+    (firstEnabled || els.qualities.querySelector('input[value="best"]')).checked = true;
+    els.preview.classList.remove("hidden");
+    els.download.disabled = false;
+    els.download.focus({ preventScroll: true });
+    els.preview.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  // ---------- download ----------
+  async function startDownload() {
+    if (!currentInfo) return;
+    const quality = (els.qualities.querySelector("input:checked") || {}).value || "1080";
+    els.download.disabled = true;
+    showError("");
+    try {
+      const job = await api("/api/download", {
+        ...commonParams(), url: currentInfo.url, quality, title: currentInfo.title,
+      });
+      jobs = [job, ...jobs.filter((j) => j.id !== job.id)];
+      renderJobs();
+      ensurePolling();
+      // พร้อมรับลิงก์ถัดไป
+      els.preview.classList.add("hidden");
+      els.url.value = "";
+      currentInfo = null;
+      highlightPlatform();
+    } catch (err) {
+      showError(err.message);
+      els.download.disabled = false;
+    }
+  }
+
+  function ensurePolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(async () => {
+      try {
+        jobs = await api("/api/jobs");
+        renderJobs();
+        if (!jobs.some((j) => ACTIVE.has(j.status))) { clearInterval(pollTimer); pollTimer = null; }
+      } catch (_) { /* เซิร์ฟเวอร์อาจถูกปิด */ }
+    }, 800);
+  }
+
+  function renderJobs() {
+    if (!jobs.length) {
+      els.jobs.replaceChildren(el("div", { class: "card empty", text: "ยังไม่มีรายการ — วางลิงก์ด้านบนเพื่อเริ่มต้น" }));
+      return;
+    }
+    els.jobs.replaceChildren(...jobs.map(renderJob));
+  }
+
+  function renderJob(job) {
+    const active = ACTIVE.has(job.status);
+    const badgeCls = job.status === "done" ? "done" : job.status === "error" ? "error" : active ? "active" : "";
+    const title = job.filename || job.title || job.url;
+    const left = job.status === "downloading"
+      ? [job.downloaded && job.total ? `${fmtBytes(job.downloaded)} / ${fmtBytes(job.total)}` : "",
+         job.speed ? `${fmtBytes(job.speed)}/s` : "", fmtEta(job.eta)].filter(Boolean).join(" · ")
+      : job.status === "done" ? fmtBytes(job.filesize) : "";
+
+    const actions = [];
+    if (active) {
+      actions.push(el("button", { type: "button", class: "small", text: "ยกเลิก",
+        onclick: () => api(`/api/jobs/${job.id}/cancel`, {}).then(ensurePolling).catch((e) => alert(e.message)) }));
+    }
+    if (job.status === "done") {
+      actions.push(el("a", { class: "btn small primary", href: `/api/jobs/${job.id}/file`,
+        download: job.filename || "", text: "บันทึกไฟล์ไปที่อื่น…" }));
+      actions.push(el("button", { type: "button", class: "small", text: "เปิดโฟลเดอร์", onclick: openFolder }));
+    }
+    if (job.status === "error" || job.status === "cancelled") {
+      actions.push(el("button", { type: "button", class: "small", text: "ลองใหม่",
+        onclick: () => { els.url.value = job.url; highlightPlatform(); checkLink(); window.scrollTo({ top: 0, behavior: "smooth" }); } }));
+    }
+
+    return el("article", { class: `card job ${job.status}` }, [
+      el("div", { class: "job-top" }, [
+        el("div", {}, [
+          el("p", { class: "job-title", text: title }),
+          el("div", { class: "job-sub", text: job.quality_label }),
+        ]),
+        el("span", { class: `badge ${badgeCls}`, text: STATUS_TEXT[job.status] || job.status }),
+      ]),
+      job.status === "error" ? null : el("div", { class: "bar", role: "progressbar", "aria-valuemin": "0",
+        "aria-valuemax": "100", "aria-valuenow": String(job.percent || 0) },
+        el("div", { style: `width:${job.status === "cancelled" ? 0 : job.percent || 0}%` })),
+      el("div", { class: "job-line" }, [
+        el("span", { text: job.message || "" }),
+        el("span", { text: [left, job.status === "downloading" ? `${Math.floor(job.percent || 0)}%` : ""].filter(Boolean).join("  ") }),
+      ]),
+      job.error ? el("div", { class: "alert error", text: job.error }) : null,
+      actions.length ? el("div", { class: "job-actions" }, actions) : null,
+    ]);
+  }
+
+  async function openFolder() {
+    try { await api("/api/open-folder", {}); } catch (err) { alert(err.message); }
+  }
+
+  // ---------- events ----------
+  els.form.addEventListener("submit", (e) => { e.preventDefault(); checkLink(); });
+  els.url.addEventListener("input", () => {
+    highlightPlatform();
+    els.preview.classList.add("hidden");
+    currentInfo = null;
+  });
+  els.url.addEventListener("paste", () => setTimeout(() => {
+    highlightPlatform();
+    if (findUrl(els.url.value)) checkLink();
+  }, 0));
+  els.paste.addEventListener("click", async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) { showError("คลิปบอร์ดว่างเปล่า — คัดลอกลิงก์ก่อน"); return; }
+      els.url.value = text.trim();
+      highlightPlatform();
+      checkLink();
+    } catch (_) {
+      showError("เบราว์เซอร์ไม่อนุญาตให้อ่านคลิปบอร์ด — คลิกที่ช่องลิงก์แล้วกด Ctrl+V แทน");
+      els.url.focus();
+    }
+  });
+  els.download.addEventListener("click", startDownload);
+  els.openFolder.addEventListener("click", openFolder);
+
+  // ---------- init ----------
+  api("/api/status").then((s) => {
+    els.dirPath.textContent = s.download_dir;
+    els.versionInfo.textContent = `yt-dlp ${s.yt_dlp_version}` + (s.ffmpeg ? "" : " · ⚠ ไม่พบ ffmpeg (รวมภาพ+เสียง/แปลง MP3 ไม่ได้)");
+  }).catch(() => {});
+  api("/api/jobs").then((list) => {
+    jobs = list; renderJobs();
+    if (jobs.some((j) => ACTIVE.has(j.status))) ensurePolling();
+  }).catch(() => {});
+  els.url.focus();
+})();
+</script>
+</body>
+</html>

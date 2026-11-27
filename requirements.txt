@@ -1,0 +1,7 @@
+# ตัวดาวน์โหลดหลัก (อัปเดตบ่อย เพราะ YouTube/Facebook เปลี่ยนระบบอยู่เสมอ)
+yt-dlp[default]>=2026.11.23
+# JavaScript runtime ที่ YouTube ต้องใช้ในการถอดรหัสลิงก์วิดีโอ
+deno>=2.5
+# ffmpeg สำรอง (ใช้เมื่อเครื่องไม่มี ffmpeg ติดตั้งไว้)
+imageio-ffmpeg>=0.6
+flask>=3.0
