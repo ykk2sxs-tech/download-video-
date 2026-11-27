@@ -1,8 +1,9 @@
 name: Build Windows app
 
 # สร้างไฟล์ติดตั้ง VideoDownloader-Setup.exe และเวอร์ชันพกพา (ไม่ต้องติดตั้ง Python)
-# ดาวน์โหลดได้จากหน้า Actions → เลือก run ล่าสุด → หัวข้อ Artifacts
-# ถ้า push tag ชื่อ v* (เช่น v1.0.0) จะสร้าง Release พร้อมไฟล์ให้ดาวน์โหลดด้วย
+# - PR / push ทุกครั้ง: build + ทดสอบ แล้วเก็บไฟล์ไว้ในหน้า Actions → run → Artifacts
+# - push เข้า main, กด "Run workflow" หรือ push tag v*: สร้าง GitHub Release ใหม่ให้ดาวน์โหลด
+#   ลิงก์ถาวร: https://github.com/<owner>/<repo>/releases/latest/download/VideoDownloader-Setup.exe
 
 on:
   push:
@@ -102,12 +103,20 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')))
     needs: [test, windows-exe]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: Pick release tag
+        id: tag
+        run: |
+          # ใช้ชื่อ tag ที่ push มา หรือสร้างใหม่ให้ตรงกับเลขเวอร์ชันของตัวติดตั้ง (1.0.<run number>)
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then tag="$GITHUB_REF_NAME"; else tag="v1.0.$GITHUB_RUN_NUMBER"; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v6
         with:
           path: artifacts
@@ -118,7 +127,10 @@ jobs:
           zip -qr VideoDownloader-Portable.zip VideoDownloader
       - uses: softprops/action-gh-release@v2
         with:
-          name: Video Downloader ${{ github.ref_name }}
+          tag_name: ${{ steps.tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Video Downloader ${{ steps.tag.outputs.tag }}
+          make_latest: true
           files: |
             artifacts/VideoDownloader-Setup/VideoDownloader-Setup.exe
             artifacts/VideoDownloader-Portable.zip

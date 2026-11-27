@@ -25,8 +25,9 @@
 
 ### Windows — ไฟล์ติดตั้ง .exe (ง่ายที่สุด ไม่ต้องติดตั้ง Python)
 
-1. ดาวน์โหลด **`VideoDownloader-Setup.exe`** จากหน้า **Releases** ของ repo นี้
-   (หรือหน้า **Actions → Build Windows app → run ล่าสุด → หัวข้อ Artifacts** ซึ่งจะได้ไฟล์ .zip ที่มี Setup.exe อยู่ข้างใน)
+1. ดาวน์โหลด **`VideoDownloader-Setup.exe`** เวอร์ชันล่าสุด:
+   <https://github.com/ykk2sxs-tech/download-video-/releases/latest/download/VideoDownloader-Setup.exe>
+   (หรือเปิดหน้า [Releases](https://github.com/ykk2sxs-tech/download-video-/releases/latest) แล้วเลือกไฟล์ในหัวข้อ Assets)
 2. ดับเบิลคลิก `VideoDownloader-Setup.exe` → กด **Next / Install** (ไม่ต้องใช้สิทธิ์ Admin)
    - ถ้า Windows ขึ้นหน้าจอสีน้ำเงิน **"Windows protected your PC"** ให้กด **More info → Run anyway**
      (ขึ้นเพราะโปรแกรมยังไม่ได้ซื้อใบรับรอง code signing ไม่ใช่ไวรัส)
@@ -120,8 +121,9 @@ venv/bin/python -m pytest -q
 ทำอัตโนมัติด้วย GitHub Actions (`.github/workflows/build-windows.yml`) ทุกครั้งที่ push / เปิด PR:
 build ด้วย PyInstaller → ทดสอบโปรแกรมที่ build แล้ว → สร้างตัวติดตั้งด้วย Inno Setup → ติดตั้งจริงแบบเงียบแล้วทดสอบซ้ำ
 
-- ต้องการ build ใหม่ด้วย yt-dlp ล่าสุด: หน้า Actions → **Build Windows app → Run workflow**
-- ต้องการสร้างหน้า Release ให้ดาวน์โหลด: push tag เช่น `git tag v1.0.0 && git push origin v1.0.0`
+- ทุกครั้งที่มีการ merge เข้า `main` จะสร้าง **Release ใหม่** (เวอร์ชัน `v1.0.<เลข run>`) พร้อมไฟล์ Setup.exe และ Portable.zip
+- ต้องการ build ใหม่ด้วย yt-dlp ล่าสุดโดยไม่แก้โค้ด: หน้า Actions → **Build Windows app → Run workflow** (ได้ Release ใหม่เช่นกัน)
+- push tag `v*` (เช่น `v2.0.0`) ก็สร้าง Release ด้วยชื่อ tag นั้น
 
 build เองบนเครื่อง (ได้โปรแกรมของระบบปฏิบัติการที่ใช้ build):
 
