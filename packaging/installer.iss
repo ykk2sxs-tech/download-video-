@@ -38,6 +38,14 @@ Source: "..\dist\VideoDownloader\*"; DestDir: "{app}"; Flags: ignoreversion recu
 [InstallDelete]
 ; ลบไฟล์ของเวอร์ชันเก่าก่อนติดตั้งทับ
 Type: filesandordirs; Name: "{app}\_internal"
+Type: filesandordirs; Name: "{app}\extension"
+
+[Registry]
+; ลิงก์ videodownloader://start ให้ส่วนเสริมเบราว์เซอร์สั่งเปิดแอปได้
+Root: HKCU; Subkey: "Software\Classes\videodownloader"; ValueType: string; ValueName: ""; ValueData: "URL:Video Downloader"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\videodownloader"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\videodownloader\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\VideoDownloader.exe,0"
+Root: HKCU; Subkey: "Software\Classes\videodownloader\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\VideoDownloader.exe"" ""%1"""
 
 [Icons]
 Name: "{autoprograms}\โหลดวิดีโอ"; Filename: "{app}\VideoDownloader.exe"

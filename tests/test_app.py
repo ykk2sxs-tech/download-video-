@@ -62,7 +62,7 @@ def test_friendly_error_messages():
     assert "รหัสผ่าน" in friendly_error(
         "ERROR: [Zoom] x: This video is protected by a passcode, use the --video-password option", "zoom")
     assert "ไม่ถูกต้อง" in friendly_error("ERROR: [Zoom] x: Wrong passcode", "zoom")
-    assert "cookies" in friendly_error("ERROR: Sign in to confirm you're not a bot", "youtube")
+    assert "ล็อกอิน" in friendly_error("ERROR: Sign in to confirm you're not a bot", "youtube")
     assert "ไม่รองรับ" in friendly_error("ERROR: Unsupported URL: https://x", None)
     assert "\x1b" not in friendly_error("\x1b[0;31mERROR:\x1b[0m boom", None)
 
@@ -221,3 +221,97 @@ def test_missing_browser_cookies_gives_thai_hint(client, media_server, monkeypat
 def test_rejects_unknown_browser(client, media_server):
     res = client.post("/api/info", json={"url": media_server, "cookies_browser": "netscape"})
     assert res.status_code == 400
+
+
+class CookieGateHandler(http.server.BaseHTTPRequestHandler):
+    """เสิร์ฟวิดีโอเฉพาะเมื่อมี cookie ที่ถูกต้อง (จำลองวิดีโอที่ต้องล็อกอิน)"""
+    payload = b""
+
+    def do_GET(self):
+        if "session=secret123" not in (self.headers.get("Cookie") or ""):
+            self.send_response(403)
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "video/mp4")
+        self.send_header("Content-Length", str(len(self.payload)))
+        self.end_headers()
+        self.wfile.write(self.payload)
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture()
+def cookie_gate(media_server):
+    import urllib.request
+
+    CookieGateHandler.payload = urllib.request.urlopen(media_server).read()
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), CookieGateHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_port}/private.mp4"
+    server.shutdown()
+
+
+BROWSER_COOKIE = {  # รูปแบบเดียวกับที่ chrome.cookies.getAll() คืนมา
+    "domain": "127.0.0.1", "hostOnly": True, "name": "session", "value": "secret123",
+    "path": "/", "secure": False, "httpOnly": True, "session": True,
+}
+
+
+def test_download_with_browser_cookies(client, cookie_gate, tmp_path):
+    without = client.post("/api/download", json={"url": cookie_gate, "quality": "720"}).get_json()
+    assert wait_for_job(client, without["id"])["status"] == "error"
+
+    res = client.post("/api/download", json={"url": cookie_gate, "quality": "720", "cookies": [BROWSER_COOKIE]})
+    job = wait_for_job(client, res.get_json()["id"])
+    assert job["status"] == "done", job.get("error")
+    assert (tmp_path / job["filename"]).is_file()
+
+
+def test_info_with_browser_cookies(client, cookie_gate):
+    assert client.post("/api/info", json={"url": cookie_gate}).status_code == 422
+    res = client.post("/api/info", json={"url": cookie_gate, "cookies": [BROWSER_COOKIE]})
+    assert res.status_code == 200, res.get_json()
+
+
+@pytest.mark.parametrize("bad", [
+    "not-a-list",
+    [{"name": "a"}],
+    [{"domain": "x.com", "name": "", "value": "v"}],
+    [{"domain": "x.com", "name": "a", "value": "v" * 9000}],
+    [BROWSER_COOKIE] * 401,
+])
+def test_rejects_malformed_cookies(client, bad):
+    res = client.post("/api/info", json={"url": "https://youtu.be/x", "cookies": bad})
+    assert res.status_code == 400
+
+
+def test_parse_cookies_domain_rules():
+    host_only, shared = app_module.parse_cookies([
+        BROWSER_COOKIE,
+        {"domain": ".facebook.com", "hostOnly": False, "name": "c_user", "value": "1",
+         "path": "/", "secure": True, "expirationDate": 1893456000.5},
+    ])
+    assert host_only.domain == "127.0.0.1" and not host_only.domain_specified
+    assert host_only.has_nonstandard_attr("HttpOnly")
+    assert shared.domain == ".facebook.com" and shared.domain_specified and shared.secure
+    assert shared.expires == 1893456000
+
+
+def test_open_job_file_requires_finished_job(client):
+    assert client.post("/api/jobs/nope/open", json={}).status_code == 404
+
+
+def test_status_reports_extension_dir(client):
+    status = client.get("/api/status").get_json()
+    assert status["extension_dir"] is None or status["extension_dir"].endswith("browser-extension")
+
+
+def test_protocol_launch_does_not_open_browser_tab(monkeypatch):
+    monkeypatch.delenv("NO_BROWSER", raising=False)
+    monkeypatch.setattr(app_module.sys, "argv", ["app.py"])
+    monkeypatch.setattr(app_module, "LAUNCHED_BY_PROTOCOL", False)
+    assert app_module.open_browser_enabled() is True
+    monkeypatch.setattr(app_module, "LAUNCHED_BY_PROTOCOL", True)
+    assert app_module.open_browser_enabled() is False

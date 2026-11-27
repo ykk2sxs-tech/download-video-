@@ -84,6 +84,10 @@ jobs:
           $shortcuts = Get-ChildItem "$desktop\*.lnk" -ErrorAction SilentlyContinue
           if (-not $shortcuts) { throw "desktop shortcut not created" }
           $shortcuts | ForEach-Object { Write-Output "shortcut: $($_.Name)" }
+          $cmd = (Get-ItemProperty 'HKCU:\Software\Classes\videodownloader\shell\open\command').'(default)'
+          Write-Output "videodownloader:// -> $cmd"
+          if ($cmd -notlike "*VideoDownloader.exe*%1*") { throw "videodownloader:// protocol not registered" }
+          if (-not (Test-Path "$env:LOCALAPPDATA\Programs\VideoDownloader\extension\manifest.json")) { throw "extension folder missing" }
           python packaging/smoke_test.py $exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -99,6 +103,13 @@ jobs:
         with:
           name: VideoDownloader-Portable
           path: dist/VideoDownloader/
+          if-no-files-found: error
+
+      - name: Upload browser extension
+        uses: actions/upload-artifact@v5
+        with:
+          name: VideoDownloader-Extension
+          path: dist/VideoDownloader-Extension.zip
           if-no-files-found: error
 
   release:
@@ -134,6 +145,7 @@ jobs:
           files: |
             artifacts/VideoDownloader-Setup/VideoDownloader-Setup.exe
             artifacts/VideoDownloader-Portable.zip
+            artifacts/VideoDownloader-Extension/VideoDownloader-Extension.zip
           body: |
             ## ดาวน์โหลด (Windows 10/11 แบบ 64-bit)
 
@@ -141,6 +153,7 @@ jobs:
             |---|---|
             | **VideoDownloader-Setup.exe** | ติดตั้งลงเครื่อง มีไอคอนบนหน้าจอ (แนะนำ) |
             | **VideoDownloader-Portable.zip** | ไม่ต้องติดตั้ง — แตกไฟล์แล้วดับเบิลคลิก `VideoDownloader.exe` |
+            | **VideoDownloader-Extension.zip** | ส่วนเสริม Chrome / Edge แบบแยก (ตัวติดตั้งมีให้อยู่แล้ว ไม่ต้องโหลดไฟล์นี้) |
 
             ## วิธีติดตั้ง
 
@@ -151,6 +164,13 @@ jobs:
             3. เปิดโปรแกรมจากไอคอน **"โหลดวิดีโอ"** บนหน้าจอ → เบราว์เซอร์จะเปิดหน้าแอปเอง
             4. คัดลอกลิงก์ YouTube / Facebook / Zoom มาวาง → เลือกคุณภาพ → ดาวน์โหลด
             5. ไฟล์จะอยู่ที่ **Downloads\VideoDownloader** — ปิดหน้าต่างสีดำเมื่อเลิกใช้
+
+            ## ส่วนเสริม Chrome / Edge (คลิกเดียวจากหน้าวิดีโอ)
+
+            1. เปิดแอป → เลื่อนลงล่างสุด กด **"ติดตั้งส่วนเสริมเบราว์เซอร์"** → **เปิดโฟลเดอร์ส่วนเสริม**
+            2. ในเบราว์เซอร์ไปที่ `chrome://extensions` (Edge: `edge://extensions`) → เปิด **Developer mode**
+            3. กด **Load unpacked** แล้วเลือกโฟลเดอร์จากข้อ 1 → ปักหมุดไอคอนไว้บนแถบเครื่องมือ
+            4. อยู่หน้าวิดีโอแล้วกดไอคอน → ดาวน์โหลด (หรือคลิกขวาที่ลิงก์วิดีโอ → "ดาวน์โหลดวิดีโอจากลิงก์นี้")
 
             ถ้าวันหนึ่งโหลดจาก YouTube/Facebook ไม่ได้ ให้ดาวน์โหลดเวอร์ชันใหม่ล่าสุดจากหน้านี้มาติดตั้งทับ
 

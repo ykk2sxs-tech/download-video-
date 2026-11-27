@@ -72,7 +72,8 @@ def main() -> None:
 
     log_path = work / "app.log"
     log = open(log_path, "wb")
-    proc = subprocess.Popen([str(exe)], env=env, stdout=log, stderr=subprocess.STDOUT,
+    # เปิดแบบเดียวกับที่ส่วนเสริมเบราว์เซอร์สั่งผ่าน videodownloader://start
+    proc = subprocess.Popen([str(exe), "videodownloader://start"], env=env, stdout=log, stderr=subprocess.STDOUT,
                             stdin=subprocess.DEVNULL, cwd=str(work))
     server = None
     try:
@@ -94,6 +95,9 @@ def main() -> None:
         check(bool(tools["ffmpeg"]) and tools["ffmpeg"].startswith(bundle_dir), "ใช้ ffmpeg ที่แนบมากับโปรแกรม")
         check(bool(tools["deno"]) and tools["deno"].startswith(bundle_dir), "ใช้ deno ที่แนบมากับโปรแกรม")
         check(tools["youtube_solver"] is True, "สคริปต์ถอดรหัส YouTube (yt-dlp-ejs) อยู่ครบ")
+        ext_dir = status.get("extension_dir")
+        check(bool(ext_dir) and (Path(ext_dir) / "manifest.json").is_file()
+              and Path(ext_dir).parent == exe.parent, "มีโฟลเดอร์ส่วนเสริมเบราว์เซอร์ข้างโปรแกรม")
 
         deno_ver = subprocess.run([tools["deno"], "--version"], capture_output=True, text=True, timeout=60)
         check(deno_ver.returncode == 0 and "deno" in deno_ver.stdout, f"deno ทำงานได้ ({deno_ver.stdout.split()[1]})")
