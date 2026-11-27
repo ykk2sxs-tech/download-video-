@@ -67,6 +67,11 @@ def test_friendly_error_messages():
     assert "\x1b" not in friendly_error("\x1b[0;31mERROR:\x1b[0m boom", None)
 
 
+class QuietHandler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+
 # ---------------------------------------------------------------------------
 # integration tests (ใช้ไฟล์วิดีโอทดสอบที่สร้างด้วย ffmpeg และเสิร์ฟจากเครื่องตัวเอง)
 # ---------------------------------------------------------------------------
@@ -84,8 +89,7 @@ def media_server(tmp_path_factory):
          str(root / "sample.mp4")],
         check=True,
     )
-    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(root))
-    handler.log_message = lambda *a, **k: None
+    handler = functools.partial(QuietHandler, directory=str(root))
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{server.server_port}/sample.mp4"
@@ -114,6 +118,7 @@ def test_index_and_status(client):
     assert client.get("/").status_code == 200
     status = client.get("/api/status").get_json()
     assert status["ok"] is True
+    assert status["tools"]["youtube_solver"] is True
 
 
 def test_rejects_foreign_host_header(client):
@@ -206,7 +211,8 @@ def test_cancel_download_cleans_temp(client, media_server, tmp_path):
 
 
 def test_missing_browser_cookies_gives_thai_hint(client, media_server, monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME", str(tmp_path))  # ไม่มีโปรไฟล์ Firefox ในโฟลเดอร์นี้
+    for var in ("HOME", "APPDATA", "LOCALAPPDATA", "USERPROFILE"):
+        monkeypatch.setenv(var, str(tmp_path))  # ไม่มีโปรไฟล์ Firefox ในโฟลเดอร์นี้
     res = client.post("/api/info", json={"url": media_server, "cookies_browser": "firefox"})
     assert res.status_code == 422
     assert "ไม่พบข้อมูลการล็อกอิน" in res.get_json()["error"]

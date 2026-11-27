@@ -23,7 +23,23 @@
 
 ## วิธีติดตั้งและเปิดใช้งาน
 
-### Windows
+### Windows — ไฟล์ติดตั้ง .exe (ง่ายที่สุด ไม่ต้องติดตั้ง Python)
+
+1. ดาวน์โหลด **`VideoDownloader-Setup.exe`** จากหน้า **Releases** ของ repo นี้
+   (หรือหน้า **Actions → Build Windows app → run ล่าสุด → หัวข้อ Artifacts** ซึ่งจะได้ไฟล์ .zip ที่มี Setup.exe อยู่ข้างใน)
+2. ดับเบิลคลิก `VideoDownloader-Setup.exe` → กด **Next / Install** (ไม่ต้องใช้สิทธิ์ Admin)
+   - ถ้า Windows ขึ้นหน้าจอสีน้ำเงิน **"Windows protected your PC"** ให้กด **More info → Run anyway**
+     (ขึ้นเพราะโปรแกรมยังไม่ได้ซื้อใบรับรอง code signing ไม่ใช่ไวรัส)
+3. เปิดโปรแกรมจากไอคอน **"โหลดวิดีโอ"** บนหน้าจอ → เบราว์เซอร์จะเปิดหน้าแอปขึ้นมาเอง
+4. ไฟล์ที่ดาวน์โหลดจะอยู่ที่ **`Downloads\VideoDownloader`**
+5. ปิดหน้าต่างสีดำเพื่อหยุดโปรแกรม
+
+มีแบบ **Portable** (ไม่ต้องติดตั้ง) ด้วย: แตกไฟล์ `VideoDownloader-Portable.zip` แล้วดับเบิลคลิก `VideoDownloader.exe`
+
+> โปรแกรม .exe ไม่อัปเดต yt-dlp เอง — ถ้าวันหนึ่งโหลดจาก YouTube/Facebook ไม่ได้
+> ให้ดาวน์โหลด Setup.exe ตัวใหม่มาติดตั้งทับ (ข้อมูลและไฟล์เดิมไม่หาย)
+
+### Windows — รันด้วย Python (อัปเดต yt-dlp อัตโนมัติทุกครั้งที่เปิด)
 
 1. ติดตั้ง **Python 3.10 ขึ้นไป** จาก <https://www.python.org/downloads/>
    (หน้าแรกของตัวติดตั้ง **ติ๊ก "Add python.exe to PATH"**)
@@ -78,6 +94,8 @@ venv/bin/python app.py                        # Windows: venv\Scripts\python app
 
 ```
 app.py              เซิร์ฟเวอร์ Flask + ระบบคิวดาวน์โหลด (ใช้ yt-dlp)
+packaging/          สคริปต์สร้าง .exe (PyInstaller), ตัวติดตั้ง (Inno Setup), smoke test
+.github/workflows/  build + ทดสอบไฟล์ .exe บน Windows อัตโนมัติ
 static/index.html   หน้าจอผู้ใช้ (ภาษาไทย, รองรับมือถือ/โหมดมืด)
 start.bat           เปิดแอปบน Windows (ติดตั้ง + อัปเดตให้อัตโนมัติ)
 start.sh            เปิดแอปบน macOS / Linux
@@ -95,4 +113,20 @@ tests/              ชุดทดสอบ (pytest)
 ```bash
 venv/bin/pip install pytest
 venv/bin/python -m pytest -q
+```
+
+### สร้างไฟล์ .exe
+
+ทำอัตโนมัติด้วย GitHub Actions (`.github/workflows/build-windows.yml`) ทุกครั้งที่ push / เปิด PR:
+build ด้วย PyInstaller → ทดสอบโปรแกรมที่ build แล้ว → สร้างตัวติดตั้งด้วย Inno Setup → ติดตั้งจริงแบบเงียบแล้วทดสอบซ้ำ
+
+- ต้องการ build ใหม่ด้วย yt-dlp ล่าสุด: หน้า Actions → **Build Windows app → Run workflow**
+- ต้องการสร้างหน้า Release ให้ดาวน์โหลด: push tag เช่น `git tag v1.0.0 && git push origin v1.0.0`
+
+build เองบนเครื่อง (ได้โปรแกรมของระบบปฏิบัติการที่ใช้ build):
+
+```bash
+pip install -r requirements.txt -r packaging/requirements-build.txt
+python packaging/build.py                                         # ได้ dist/VideoDownloader/
+python packaging/smoke_test.py dist/VideoDownloader/VideoDownloader.exe
 ```

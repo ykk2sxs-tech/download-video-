@@ -6,14 +6,17 @@
 
 from __future__ import annotations
 
+import gc
 import logging
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
 import time
+import urllib.request
 import uuid
 import webbrowser
 from pathlib import Path
@@ -24,8 +27,40 @@ from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 import yt_dlp
 from yt_dlp.utils import DownloadCancelled
 
+# FROZEN = รันจากไฟล์ .exe ที่สร้างด้วย PyInstaller (ดู packaging/)
+FROZEN = bool(getattr(sys, "frozen", False))
 BASE_DIR = Path(__file__).resolve().parent
-DOWNLOAD_DIR = Path(os.environ.get("DOWNLOAD_DIR", BASE_DIR / "downloads")).resolve()
+RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", BASE_DIR))  # ที่อยู่ static/ และ bin/ ภายใน .exe
+EXE_SUFFIX = ".exe" if sys.platform.startswith("win") else ""
+
+
+def user_downloads_folder() -> Path:
+    """โฟลเดอร์ Downloads ของผู้ใช้ (รองรับกรณีย้าย Downloads ไปไดรฟ์อื่น/OneDrive บน Windows)"""
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            class GUID(ctypes.Structure):
+                _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD),
+                            ("Data3", wintypes.WORD), ("Data4", ctypes.c_ubyte * 8)]
+
+            # FOLDERID_Downloads {374DE290-123F-4565-9164-39C4925E467B}
+            folder_id = GUID(0x374DE290, 0x123F, 0x4565,
+                             (ctypes.c_ubyte * 8)(0x91, 0x64, 0x39, 0xC4, 0x92, 0x5E, 0x46, 0x7B))
+            path_ptr = ctypes.c_wchar_p()
+            if ctypes.windll.shell32.SHGetKnownFolderPath(
+                    ctypes.byref(folder_id), 0, None, ctypes.byref(path_ptr)) == 0:
+                folder = Path(path_ptr.value)
+                ctypes.windll.ole32.CoTaskMemFree(path_ptr)
+                return folder
+        except Exception:
+            pass
+    return Path.home() / "Downloads"
+
+
+DEFAULT_DOWNLOAD_DIR = user_downloads_folder() / "VideoDownloader" if FROZEN else BASE_DIR / "downloads"
+DOWNLOAD_DIR = Path(os.environ.get("DOWNLOAD_DIR", DEFAULT_DOWNLOAD_DIR)).resolve()
 TEMP_DIR = DOWNLOAD_DIR / ".tmp"
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8765"))
@@ -84,8 +119,17 @@ def detect_platform(url: str) -> str | None:
     return None
 
 
+def bundled_binary(name: str) -> str | None:
+    """โปรแกรมที่แนบมากับไฟล์ .exe (ffmpeg, deno) อยู่ในโฟลเดอร์ bin/"""
+    path = RESOURCE_DIR / "bin" / (name + EXE_SUFFIX)
+    return str(path) if path.is_file() else None
+
+
 def find_ffmpeg() -> str | None:
-    """ใช้ ffmpeg ในเครื่องก่อน ถ้าไม่มีใช้ตัวที่มากับแพ็กเกจ imageio-ffmpeg"""
+    """ใช้ ffmpeg ที่แนบมากับ .exe ก่อน, ต่อด้วยตัวในเครื่อง, สุดท้ายตัวจากแพ็กเกจ imageio-ffmpeg"""
+    bundled = bundled_binary("ffmpeg")
+    if bundled:
+        return bundled
     system_ffmpeg = shutil.which("ffmpeg")
     if system_ffmpeg:
         return system_ffmpeg
@@ -100,13 +144,14 @@ def find_ffmpeg() -> str | None:
 def find_js_runtimes() -> dict:
     """YouTube ต้องใช้ JavaScript runtime (deno/node) ในการถอดรหัสลิงก์วิดีโอ"""
     runtimes: dict = {}
-    deno_path = None
-    try:
-        import deno
+    deno_path = bundled_binary("deno")
+    if not deno_path:
+        try:
+            import deno
 
-        deno_path = deno.find_deno_bin()
-    except Exception:
-        deno_path = shutil.which("deno")
+            deno_path = deno.find_deno_bin()
+        except Exception:
+            deno_path = shutil.which("deno")
     if deno_path:
         runtimes["deno"] = {"path": str(deno_path)}
     if shutil.which("node"):
@@ -223,6 +268,16 @@ jobs_lock = threading.Lock()
 download_slots = threading.Semaphore(MAX_PARALLEL_DOWNLOADS)
 
 
+def remove_dir(path: Path) -> None:
+    """ลบโฟลเดอร์ชั่วคราว (บน Windows ไฟล์ที่เพิ่งถูกยกเลิกอาจยังถูกเปิดค้างอยู่ชั่วครู่ จึงลองซ้ำ)"""
+    for _ in range(10):
+        shutil.rmtree(path, ignore_errors=True)
+        if not path.exists():
+            return
+        gc.collect()
+        time.sleep(0.3)
+
+
 def public_job(job: dict) -> dict:
     return {k: v for k, v in job.items() if not k.startswith("_")}
 
@@ -315,7 +370,7 @@ def run_download(job_id: str, url: str, quality: str, password: str | None, brow
                 job.update(status="error", message="ดาวน์โหลดไม่สำเร็จ",
                            error=friendly_error(str(exc), platform))
         finally:
-            shutil.rmtree(job_tmp, ignore_errors=True)
+            remove_dir(job_tmp)
             job["finished_at"] = time.time()
 
 
@@ -323,7 +378,7 @@ def run_download(job_id: str, url: str, quality: str, password: str | None, brow
 # Flask app
 # ---------------------------------------------------------------------------
 
-app = Flask(__name__, static_folder=str(BASE_DIR / "static"), static_url_path="/static")
+app = Flask(__name__, static_folder=str(RESOURCE_DIR / "static"), static_url_path="/static")
 app.json.ensure_ascii = False
 
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -353,6 +408,16 @@ def index():
     return send_from_directory(app.static_folder, "index.html")
 
 
+def youtube_solver_available() -> bool:
+    """สคริปต์ถอดรหัส YouTube (yt-dlp-ejs) ต้องอยู่ครบ โดยเฉพาะในไฟล์ .exe"""
+    try:
+        import yt_dlp_ejs.yt.solver as solver
+
+        return len(solver.core()) > 1000 and len(solver.lib()) > 1000
+    except Exception:
+        return False
+
+
 @app.get("/api/status")
 def status():
     return jsonify(
@@ -361,6 +426,12 @@ def status():
         ffmpeg=bool(FFMPEG_PATH),
         js_runtimes=sorted(JS_RUNTIMES),
         download_dir=str(DOWNLOAD_DIR),
+        frozen=FROZEN,
+        tools={
+            "ffmpeg": FFMPEG_PATH,
+            "deno": (JS_RUNTIMES.get("deno") or {}).get("path"),
+            "youtube_solver": youtube_solver_available(),
+        },
     )
 
 
@@ -502,11 +573,72 @@ def http_error(err):
     return jsonify(error=getattr(err, "description", str(err))), err.code
 
 
+def setup_console():
+    # กันโปรแกรมล่มเมื่อพิมพ์ภาษาไทยในหน้าต่างที่ไม่รองรับ UTF-8
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+
+            ctypes.windll.kernel32.SetConsoleTitleW("Video Downloader - โหลดวิดีโอ")
+        except Exception:
+            pass
+
+
+def port_in_use(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET6 if ":" in host else socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind((host, port))
+        except OSError:
+            return True
+    return False
+
+
+def already_running(url: str) -> bool:
+    """ตรวจว่ามีแอปนี้เปิดอยู่แล้วหรือไม่ (เช่น ดับเบิลคลิกซ้ำ)"""
+    try:
+        with urllib.request.urlopen(f"{url}/api/status", timeout=3) as res:
+            return b'"yt_dlp_version"' in res.read()
+    except Exception:
+        return False
+
+
+def open_browser_enabled() -> bool:
+    return "--no-browser" not in sys.argv and not os.environ.get("NO_BROWSER")
+
+
+def pause_before_exit():
+    """ใน .exe หน้าต่างจะปิดทันทีถ้าไม่หยุดรอ ผู้ใช้จะไม่เห็นข้อความ error"""
+    if FROZEN and sys.stdin and sys.stdin.isatty():
+        try:
+            input("\nกด Enter เพื่อปิดหน้าต่างนี้…")
+        except Exception:
+            pass
+
+
 def main():
-    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.rmtree(TEMP_DIR, ignore_errors=True)  # ล้างไฟล์ค้างจากครั้งก่อน
+    setup_console()
     display_host = "127.0.0.1" if HOST in ("0.0.0.0", "::") else HOST
     url = f"http://{display_host}:{PORT}"
+
+    if port_in_use(HOST, PORT):
+        if already_running(url):
+            print(f"แอปเปิดอยู่แล้ว — กำลังเปิดหน้า {url} ในเบราว์เซอร์")
+            if open_browser_enabled():
+                webbrowser.open(url)
+            time.sleep(3)
+            return
+        print(f"เปิดแอปไม่ได้: พอร์ต {PORT} ถูกโปรแกรมอื่นใช้อยู่")
+        print("แก้ไขโดยปิดโปรแกรมนั้น หรือตั้งค่า PORT เป็นเลขอื่น เช่น  set PORT=8766")
+        pause_before_exit()
+        sys.exit(1)
+
+    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(TEMP_DIR, ignore_errors=True)  # ล้างไฟล์ค้างจากครั้งก่อน
     print("=" * 60)
     print(f"  แอปดาวน์โหลดวิดีโอ พร้อมใช้งานที่  {url}")
     print(f"  ไฟล์จะถูกบันทึกที่  {DOWNLOAD_DIR}")
@@ -514,11 +646,21 @@ def main():
           f" | JS runtime: {', '.join(JS_RUNTIMES)}")
     print("  ปิดหน้าต่างนี้ (หรือกด Ctrl+C) เพื่อหยุดแอป")
     print("=" * 60)
-    if "--no-browser" not in sys.argv and not os.environ.get("NO_BROWSER"):
+    if open_browser_enabled():
         threading.Timer(1.2, lambda: webbrowser.open(url)).start()
     logging.getLogger("werkzeug").setLevel(logging.ERROR)  # ไม่ต้องแสดง log ทุก request
     app.run(host=HOST, port=PORT, debug=False, threaded=True)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+    except Exception:
+        import traceback
+
+        traceback.print_exc()
+        print("\nเกิดข้อผิดพลาด ทำให้แอปหยุดทำงาน")
+        pause_before_exit()
+        sys.exit(1)

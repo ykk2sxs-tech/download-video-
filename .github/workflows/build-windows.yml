@@ -1,0 +1,124 @@
+name: Build Windows app
+
+# สร้างไฟล์ติดตั้ง VideoDownloader-Setup.exe และเวอร์ชันพกพา (ไม่ต้องติดตั้ง Python)
+# ดาวน์โหลดได้จากหน้า Actions → เลือก run ล่าสุด → หัวข้อ Artifacts
+# ถ้า push tag ชื่อ v* (เช่น v1.0.0) จะสร้าง Release พร้อมไฟล์ให้ดาวน์โหลดด้วย
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: python -m pip install -r requirements.txt pytest
+      - run: python -m pytest -q
+
+  windows-exe:
+    name: Build Windows .exe
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            packaging/requirements-build.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt -r packaging/requirements-build.txt
+
+      - name: Build program folder (PyInstaller)
+        run: python packaging/build.py
+
+      - name: Smoke test portable build
+        run: python packaging/smoke_test.py dist\VideoDownloader\VideoDownloader.exe
+
+      - name: Build installer (Inno Setup)
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+          }
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { "1.0.$env:GITHUB_RUN_NUMBER" }
+          & $iscc "/DAppVersion=$version" packaging\installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Item dist\VideoDownloader-Setup.exe | Format-List Name, Length
+
+      - name: Test installer (silent install + smoke test)
+        run: |
+          $p = Start-Process dist\VideoDownloader-Setup.exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exit code $($p.ExitCode)" }
+          $exe = "$env:LOCALAPPDATA\Programs\VideoDownloader\VideoDownloader.exe"
+          if (-not (Test-Path $exe)) { throw "installed exe not found: $exe" }
+          $desktop = [Environment]::GetFolderPath('Desktop')
+          $shortcuts = Get-ChildItem "$desktop\*.lnk" -ErrorAction SilentlyContinue
+          if (-not $shortcuts) { throw "desktop shortcut not created" }
+          $shortcuts | ForEach-Object { Write-Output "shortcut: $($_.Name)" }
+          python packaging/smoke_test.py $exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v5
+        with:
+          name: VideoDownloader-Setup
+          path: dist/VideoDownloader-Setup.exe
+          if-no-files-found: error
+
+      - name: Upload portable version
+        uses: actions/upload-artifact@v5
+        with:
+          name: VideoDownloader-Portable
+          path: dist/VideoDownloader/
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, windows-exe]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          path: artifacts
+      - name: Zip portable version
+        run: |
+          cd artifacts
+          mv VideoDownloader-Portable VideoDownloader
+          zip -qr VideoDownloader-Portable.zip VideoDownloader
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/VideoDownloader-Setup/VideoDownloader-Setup.exe
+            artifacts/VideoDownloader-Portable.zip
+          generate_release_notes: true
